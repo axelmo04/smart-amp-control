@@ -1,43 +1,40 @@
 import streamlit as st
 import paho.mqtt.client as mqtt
 
-# --- Configuración del Broker ---
-# Usamos el mismo broker que el ESP32
+# Configuración de comunicación
 BROKER = "broker.hivemq.com"
-TOPIC = "mecatronic/amp/power"
+T_POWER = "mecatronic/amp/power"
 
-# Configuración de la página
-st.set_page_config(page_title="Smart Amp Control", page_icon="🔊")
+st.set_page_config(page_title="Control de Audio Pro", page_icon="🔊")
 
-st.title("🔊 Control de Amplificador IoT")
-st.subheader("Proyecto Final de Mecatrónica")
+st.title("🔊 Panel de Control Mecatrónico")
+st.write("Control de Amplificador mediante Módulo de Relés y ESP32")
 
-# Función para enviar mensajes
-def enviar_comando(comando):
+# Función para mandar comandos
+def mandar_comando(cmd):
     try:
-        client = mqtt.Client()
-        client.connect(BROKER, 1883, 60)
-        client.publish(TOPIC, comando)
-        client.disconnect()
-        return True
+        c = mqtt.Client()
+        c.connect(BROKER, 1883, 10)
+        c.publish(T_POWER, cmd)
+        c.disconnect()
+        st.toast(f"Comando {cmd} enviado")
     except Exception as e:
         st.error(f"Error de conexión: {e}")
-        return False
 
-# Interfaz de usuario
-st.write("Presiona los botones para controlar el estado del amplificador:")
-
+# Diseño de la página
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("🚀 ENCENDER", use_container_width=True):
-        if enviar_comando("ON"):
-            st.success("Comando ON enviado")
+    st.header("Interruptor")
+    if st.button("🚀 ENCENDER SISTEMA", use_container_width=True):
+        mandar_comando("ON")
+    if st.button("🛑 APAGAR SISTEMA", use_container_width=True, type="primary"):
+        mandar_comando("OFF")
 
 with col2:
-    if st.button("🛑 APAGAR", use_container_width=True, type="primary"):
-        if enviar_comando("OFF"):
-            st.warning("Comando OFF enviado")
+    st.header("Telemetría")
+    st.info("La temperatura se muestra en la consola del ESP32 por ahora.")
+    # Próximo paso: Agregar un suscriptor aquí para ver la temperatura.
 
 st.divider()
-st.caption("Conectado a través de HiveMQ Public Broker")
+st.caption("Proyecto final - Ingeniería en Mecatrónica")
