@@ -8,65 +8,48 @@ T_CONTROL = "axel/mecatronic/control/audio"
 T_TEMP = "axel/mecatronic/telemetry/temp"
 
 st.set_page_config(page_title="Control Audio Pro", page_icon="🔊")
-st.title("🔊 Panel de Control Mecatrónico")
+st.title("🔊 Panel de Control y Telemetría")
 
-# Estado de la temperatura en la interfaz
-if 'temp' not in st.session_state:
-    st.session_state.temp = "Cargando..."
+# Inicializamos el estado de la temperatura
+if 'lectura' not in st.session_state:
+    st.session_state.lectura = "Cargando..."
 
-# --- FUNCIÓN DE ENVÍO CON ESPERA (Publish & Wait) ---
-def enviar_comando(comando):
-    try:
-        client = mqtt.Client()
-        client.connect(BROKER, 1883, 60)
-        
-        # Iniciamos el bucle para procesar el envío
-        client.loop_start()
-        
-        # Publicamos con QoS 1 (asegura entrega)
-        msg_info = client.publish(T_CONTROL, comando, qos=1)
-        
-        # BLOQUEO DE SEGURIDAD: Espera hasta que el mensaje realmente salga
-        msg_info.wait_for_publish()
-        
-        time.sleep(0.5) # Respiro para el servidor
-        client.loop_stop()
-        client.disconnect()
-        st.toast(f"✅ ¡{comando} enviado con éxito!")
-    except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
-
-# --- RECEPTOR DE TEMPERATURA ---
-def on_message(client, userdata, message):
-    st.session_state.temp = message.payload.decode()
+# --- LÓGICA DE RECEPCIÓN ---
+def al_recibir_mensaje(client, userdata, message):
+    # Guardamos el dato en la memoria del navegador
+    st.session_state.lectura = message.payload.decode()
 
 @st.cache_resource
-def iniciar_escucha():
-    client = mqtt.Client()
-    client.on_message = on_message
-    client.connect(BROKER, 1883)
-    client.subscribe(T_TEMP)
-    client.loop_start()
-    return client
+def iniciar_conexion():
+    cliente = mqtt.Client()
+    cliente.on_message = al_recibir_mensaje
+    cliente.connect(BROKER, 1883)
+    cliente.subscribe(T_TEMP)
+    cliente.loop_start()
+    return cliente
 
-iniciar_escucha()
+iniciar_conexion()
 
-# --- INTERFAZ DE USUARIO ---
+# --- INTERFAZ ---
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Interruptor")
-    # Usamos botones grandes para el celular
+    st.subheader("Control")
     if st.button("🚀 ENCENDER", use_container_width=True):
-        enviar_comando("ON")
+        c = mqtt.Client(); c.connect(BROKER, 1883)
+        c.publish(T_CONTROL, "ON"); c.disconnect()
     if st.button("🛑 APAGAR", use_container_width=True, type="primary"):
-        enviar_comando("OFF")
+        c = mqtt.Client(); c.connect(BROKER, 1883)
+        c.publish(T_CONTROL, "OFF"); c.disconnect()
 
 with col2:
     st.subheader("Telemetría")
-    st.metric(label="Temperatura", value=f"{st.session_state.temp} °C")
-    if st.button("🔄 Actualizar"):
+    # Este cuadro se actualizará cuando cambie st.session_state.lectura
+    st.metric(label="Temperatura Actual", value=f"{st.session_state.lectura} °C")
+    
+    # BOTÓN DE REFRESCADO MANUAL
+    if st.button("🔄 Forzar Actualización"):
         st.rerun()
 
 st.divider()
-st.caption("Axel - Control IoT v4.0")
+st.info("El sistema recibe datos cada 5-10 segundos desde el ESP32.")
