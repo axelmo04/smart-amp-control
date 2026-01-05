@@ -2,54 +2,56 @@ import streamlit as st
 import paho.mqtt.client as mqtt
 import time
 
-# --- CONFIGURACIÓN IDÉNTICA AL ESP32 ---
+# --- CONFIGURACIÓN ---
 BROKER = "broker.hivemq.com"
 T_CONTROL = "axel/mecatronic/control/audio"
 T_TEMP = "axel/mecatronic/telemetry/temp"
 
-st.set_page_config(page_title="Control Audio Pro", page_icon="🔊")
-st.title("🔊 Panel de Control y Telemetría")
+st.set_page_config(page_title="Control Audio Axel", page_icon="🔊")
+st.title("🔊 Control Maestro y Telemetría")
 
-# Inicializamos el estado de la temperatura
-if 'lectura' not in st.session_state:
-    st.session_state.lectura = "Cargando..."
-
-# --- LÓGICA DE RECEPCIÓN ---
-def al_recibir_mensaje(client, userdata, message):
-    # Guardamos el dato en la memoria del navegador
-    st.session_state.lectura = message.payload.decode()
-
-@st.cache_resource
-def iniciar_conexion():
-    cliente = mqtt.Client()
-    cliente.on_message = al_recibir_mensaje
-    cliente.connect(BROKER, 1883)
-    cliente.subscribe(T_TEMP)
-    cliente.loop_start()
-    return cliente
-
-iniciar_conexion()
+# --- FUNCIONES ---
+def enviar(comando):
+    try:
+        client = mqtt.Client()
+        client.connect(BROKER, 1883, 60)
+        client.publish(T_CONTROL, comando, qos=1)
+        client.disconnect()
+        st.toast(f"Comando {comando} enviado")
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 # --- INTERFAZ ---
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Control")
+    st.subheader("Poder")
     if st.button("🚀 ENCENDER", use_container_width=True):
-        c = mqtt.Client(); c.connect(BROKER, 1883)
-        c.publish(T_CONTROL, "ON"); c.disconnect()
+        enviar("ON")
     if st.button("🛑 APAGAR", use_container_width=True, type="primary"):
-        c = mqtt.Client(); c.connect(BROKER, 1883)
-        c.publish(T_CONTROL, "OFF"); c.disconnect()
+        enviar("OFF")
 
 with col2:
-    st.subheader("Telemetría")
-    # Este cuadro se actualizará cuando cambie st.session_state.lectura
-    st.metric(label="Temperatura Actual", value=f"{st.session_state.lectura} °C")
-    
-    # BOTÓN DE REFRESCADO MANUAL
-    if st.button("🔄 Forzar Actualización"):
-        st.rerun()
+    st.subheader("Estado")
+    # Para la temperatura, usaremos un truco: leer el "último mensaje" del broker
+    if st.button("🌡️ VER TEMPERATURA"):
+        # Esta parte se conecta solo un segundo para ver qué hay en el canal
+        def on_msg(c, u, m):
+            st.session_state.temp = m.payload.decode()
+            c.disconnect()
+            
+        temp_client = mqtt.Client()
+        temp_client.on_message = on_msg
+        temp_client.connect(BROKER, 1883)
+        temp_client.subscribe(T_TEMP)
+        temp_client.loop_start()
+        time.sleep(1) # Espera a que llegue el dato
+        temp_client.loop_stop()
+        
+    if 'temp' in st.session_state:
+        st.metric("Temperatura actual", f"{st.session_state.temp} °C")
+    else:
+        st.write("Presiona el botón para leer")
 
 st.divider()
-st.info("El sistema recibe datos cada 5-10 segundos desde el ESP32.")
+st.caption("Axel - Ingeniería Mecatrónica")
