@@ -1,18 +1,38 @@
 import streamlit as st
 import paho.mqtt.client as mqtt
+import time
 
-st.title("🔊 Master Control - Smart Audio")
+# Datos del servidor
+BROKER = "broker.hivemq.com"
+TOPIC = "mecatronic/amp/power"
 
-def enviar(comando):
-    client = mqtt.Client()
-    client.connect("broker.hivemq.com", 1883)
-    client.publish("mecatronic/amp/power", comando)
-    client.disconnect()
+st.title("🔊 Control de Audio - Axel")
 
-if st.button("🚀 ENCENDER"):
-    enviar("ON")
-    st.success("Señal enviada: ON")
+def enviar_comando(comando):
+    try:
+        # Creamos el cliente
+        client = mqtt.Client()
+        
+        # Conectamos
+        st.write(f"Intentando conectar a {BROKER}...")
+        client.connect(BROKER, 1883, 60)
+        
+        # Publicamos el mensaje
+        resultado = client.publish(TOPIC, comando)
+        
+        # Esperamos un instante para asegurar que el mensaje salga
+        if resultado.rc == mqtt.MQTT_ERR_SUCCESS:
+            st.success(f"✅ Mensaje '{comando}' enviado al servidor")
+        else:
+            st.error("❌ El mensaje no pudo salir")
+            
+        client.disconnect()
+    except Exception as e:
+        st.error(f"❌ Error de conexión: {e}")
 
-if st.button("🛑 APAGAR"):
-    enviar("OFF")
-    st.error("Señal enviada: OFF")
+# Botones
+if st.button("🚀 ENCENDER", use_container_width=True):
+    enviar_comando("ON")
+
+if st.button("🛑 APAGAR", use_container_width=True, type="primary"):
+    enviar_comando("OFF")
